@@ -11,6 +11,9 @@
         public static bool resetPressed;
         public static bool liveClothingPanelUpdate;
 
+        public static Vector2 mainWindowAnchor;
+        public static Vector2 mainButtonAnchor;
+        public static Vector2 resetButtonAnchor;
 
         public static void SetupUI()
         {
@@ -25,7 +28,22 @@
                 ResetButton.onClick.AddListener(DelegateSupport.ConvertDelegate<UnityAction>(new Action(ResetButtonAction)));
                 MainWindow.active = false;
                 ResetButton.gameObject.active = false;
+                mainWindowAnchor = MainWindow.GetComponent<RectTransform>().anchoredPosition;
+                mainButtonAnchor = MainButton.GetComponent<RectTransform>().anchoredPosition;
+                resetButtonAnchor = ResetButton.GetComponent<RectTransform>().anchoredPosition;
 
+            }
+
+            if (IsUltraWide(out _))
+            {
+                float ultraWideOffset = CalculateUltraWideOffset();
+                OffsetUIForUltraWide(ultraWideOffset);
+                AdjustForUltraWide(true);
+            }
+            else
+            {
+                OffsetUIForUltraWide(0f);
+                AdjustForUltraWide(false);
             }
         }
 
@@ -105,10 +123,13 @@
 
         public static void ResetButtonAction()
         {
+            GearItem gi = InterfaceManager.GetPanel<Panel_Inventory>().GetCurrentlySelectedItem().m_GearItem;
             foreach (Stat st in Enum.GetValues(typeof(Stat)))
             {
                 if (st == Stat.Undefined) continue;
                 Sliders.SetSliderValue(st, Sliders.GetSliderByType(st, true).value, false);
+                //Sliders.WriteTweakedClothingData(st, gi);
+                bigData.Remove(Utils.SanitizePrefabName(gi.name));
             }
             resetPressed = true;
         }
@@ -150,6 +171,48 @@
             // ^ check if applied to prefab, because it would then be applied multiple times
             ci.m_DailyHPDecayWhenWornInside *= Settings.options.clothingDecayIndoors;
             ci.m_DailyHPDecayWhenWornOutside *= Settings.options.clothingDecayOutdoors;
+        }
+
+
+        public static void AdjustForUltraWide(bool isUltraWide)
+        {
+            CTUIRoot.GetComponent<CanvasScaler>().m_MatchWidthOrHeight = isUltraWide ? 1f : 0f;
+        }
+
+        public static float CalculateUltraWideOffset()
+        {
+            if (IsUltraWide(out float aspect))
+            {
+                float refWidth = 1920f;
+                float refHeight = 1080f;
+
+                float canvasWidth = refHeight * aspect;
+
+                return (canvasWidth - refWidth) / 2f;
+            }
+            return 0f;
+        }
+
+        public static bool IsUltraWide(out float aspect)
+        {
+            float screenRatio = (float)Screen.width / (float)Screen.height;
+            aspect = screenRatio;
+            return screenRatio > 2.2f;
+        }
+
+        public static void OffsetUIForUltraWide(float offset)
+        {
+            Vector2 pos1 = mainWindowAnchor;
+            Vector2 pos2 = mainButtonAnchor;
+            Vector2 pos3 = resetButtonAnchor;
+
+            pos1.x -= offset;
+            pos2.x -= offset;
+            pos3.x -= offset;
+
+            MainWindow.GetComponent<RectTransform>().anchoredPosition = pos1;
+            MainButton.GetComponent<RectTransform>().anchoredPosition = pos2;
+            ResetButton.GetComponent<RectTransform>().anchoredPosition = pos3;
         }
 
     }

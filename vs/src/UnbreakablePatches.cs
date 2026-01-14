@@ -5,8 +5,9 @@ namespace CT2
     internal class UnbreakablePatches
     {
         [HarmonyPatch(typeof(ClothingItem), nameof(ClothingItem.Awake))]
-        private static class ClothingItemAwake
+        public static class ClothingItemAwake
         {
+            public static HashSet<ClothingItem> delayedInitialization = new();
             internal static void Postfix(ref ClothingItem __instance)
             {
                 if (__instance.gameObject.scene.name == null) return; // prefab, we don't touch that
@@ -17,8 +18,8 @@ namespace CT2
 
                 if (bigData.ContainsKey(name))
                 {
-                    Log(CC.Gray, $"Loaded {name} tweaks");
-                    SetInstanceClothingValuesToTweaked(__instance);
+                    //MelonCoroutines.Start(SetInstanceClothingValuesToTweaked(__instance));
+                    delayedInitialization.Add(__instance);
                 }
             }
         }
@@ -38,7 +39,7 @@ namespace CT2
 
                     if (resetPressed)
                     {
-                        SetInstanceClothingValuesToTweaked(__instance);
+                        MelonCoroutines.Start(SetInstanceClothingValuesToTweaked(__instance));
                     }
                     else
                     {
@@ -47,7 +48,7 @@ namespace CT2
                         switch (st)
                         {
                             default:
-                                SetInstanceClothingValuesToTweaked(__instance);
+                                MelonCoroutines.Start(SetInstanceClothingValuesToTweaked(__instance));
                                 break;
                             case Stat.Warmth:
                                 __instance.m_Warmth = bigData[name].warmth ?? GetSpecificVanillaValue(name, st);

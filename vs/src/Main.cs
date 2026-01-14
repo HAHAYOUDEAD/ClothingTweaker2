@@ -2,7 +2,7 @@
 {
     public class Main : MelonMod
     {
-        public const string modVersion = "1.0.0";
+        public const string modVersion = "1.0.4";
         public const string modName = "ClothingTweaker2";
         public const string modAuthor = "Waltz";
 
@@ -15,6 +15,10 @@
         public static readonly string saveDataTag = "alltweaks";
 
         public static Dictionary<string, ClothingData> bigData = new();
+
+        public static Dictionary<string, GearItem> tempPrefabList = new();
+
+        public static int coroutineRunning;
         public enum Stat
         {
             Undefined,
@@ -45,12 +49,51 @@
             }
         }
 
-        public static void ResetAllCustomData() => bigData.Clear();
-        public static void SetInstanceClothingValuesToTweaked(ClothingItem ci)
+        public override void OnSceneWasInitialized(int buildIndex, string sceneName)
         {
-            string name = Utils.SanitizePrefabName(ci.name);
+            if (IsScenePlayable(sceneName))
+            {
+                if (UnbreakablePatches.ClothingItemAwake.delayedInitialization.Count > 0)
+                {
+                    foreach (ClothingItem ci in UnbreakablePatches.ClothingItemAwake.delayedInitialization)
+                    {
+                        MelonCoroutines.Start(SetInstanceClothingValuesToTweaked(ci));
+                        Log(CC.Gray, $"Post-initialization for {ci.name}");
+                    }
+                    UnbreakablePatches.ClothingItemAwake.delayedInitialization.Clear();
+                }
+            }
+        }
 
-            GearItem giPrefab = GearItem.LoadGearItemPrefab(name);
+        public static void ResetAllCustomData() => bigData.Clear();
+        public static IEnumerator SetInstanceClothingValuesToTweaked(ClothingItem ci)
+        {
+            while (coroutineRunning > 0)
+            {
+                yield return new WaitForEndOfFrame();
+            }
+            string name = Utils.SanitizePrefabName(ci.name);
+            GearItem giPrefab;
+            if (tempPrefabList.ContainsKey(name) && tempPrefabList[name]?.gameObject != null) giPrefab = tempPrefabList[name];
+            else
+            {
+                coroutineRunning++;
+                giPrefab = GearItem.LoadGearItemPrefab(name); // running 2+ of those with same gear name at the same time causes issues
+                //giPrefab.gameObject.SetActive(false);
+                float f = 0f;
+                while (!giPrefab || f > 1f)
+                {
+                    f += Time.deltaTime;
+                    yield return new WaitForEndOfFrame();
+                }
+                coroutineRunning--;
+                if (!giPrefab)
+                {
+                    Log(CC.Red, $"Can't load {name} refab, tweaks were not loaded");
+                    yield break;
+                }
+                tempPrefabList[name] = giPrefab;
+            }
             ClothingItem ciPrefab = giPrefab.GetComponent<ClothingItem>();
             ci.m_Warmth = bigData[name].warmth ?? ciPrefab.m_Warmth;
             ci.m_WarmthWhenWet = bigData[name].warmthWet ?? ciPrefab.m_WarmthWhenWet;
@@ -60,6 +103,7 @@
             ci.m_SprintBarReductionPercent = bigData[name].mobility ?? ciPrefab.m_SprintBarReductionPercent;
             if (bigData[name].weight != null) ci.GetComponent<GearItem>().WeightKG = ItemWeight.FromKilograms((float)bigData[name].weight);
             else ci.GetComponent<GearItem>().WeightKG = giPrefab.GearItemData.BaseWeightKG;
+            yield break;
         }
     }
 }

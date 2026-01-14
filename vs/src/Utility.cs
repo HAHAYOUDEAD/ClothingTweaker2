@@ -15,7 +15,7 @@ global using Il2CppTLD.IntBackedUnit;
 global using UnityEngine.Events;
 global using UnityEngine.UI;
 global using UnityEngine.EventSystems;
-global using MelonLoader.TinyJSON;
+global using TLD.TinyJSON;
 
 global using static CT2.Utility;
 global using static CT2.Main;
@@ -41,15 +41,18 @@ namespace CT2
             return !string.IsNullOrEmpty(scene) && scene.Contains("MainMenu");
         }
 
-        public static AssetBundle LoadEmbeddedAssetBundle(string name)
+        public static AssetBundle? LoadEmbeddedAssetBundle(string name)
         {
-            MemoryStream memoryStream;
-            Stream stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(Main.resourcesFolder + name);
-            memoryStream = new MemoryStream((int)stream.Length);
-            stream.CopyTo(memoryStream);
+            using (Stream? stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(Main.resourcesFolder + name))
+            {
+                MemoryStream? memory = new((int)stream.Length);
+                stream!.CopyTo(memory);
 
-            return AssetBundle.LoadFromMemory(memoryStream.ToArray());
+                Il2CppSystem.IO.MemoryStream memoryStream = new(memory.ToArray());
+                return AssetBundle.LoadFromStream(memoryStream);
+            };
         }
+
         public static void Log(CC color, string message)
         {
             if (Settings.options.log)
