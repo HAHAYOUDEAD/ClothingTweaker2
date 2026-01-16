@@ -124,14 +124,38 @@
         public static void ResetButtonAction()
         {
             GearItem gi = InterfaceManager.GetPanel<Panel_Inventory>().GetCurrentlySelectedItem().m_GearItem;
+
+            MelonCoroutines.Start(ResetButtonCoroutine(gi));
+        }
+
+        public static IEnumerator ResetButtonCoroutine(GearItem gi)
+        {
+            bigData[gi.name] = new();
+            liveClothingPanelUpdate = true;
+            resetPressed = true;
+            bigData[gi.name].doUpdate = true;
+            float timer = 0f; 
+
             foreach (Stat st in Enum.GetValues(typeof(Stat)))
             {
                 if (st == Stat.Undefined) continue;
                 Sliders.SetSliderValue(st, Sliders.GetSliderByType(st, true).value, false);
-                //Sliders.WriteTweakedClothingData(st, gi);
-                bigData.Remove(Utils.SanitizePrefabName(gi.name));
             }
-            resetPressed = true;
+
+            yield return new WaitForEndOfFrame();
+
+            while (bigData[gi.name].updateCounter > 0 || coroutineRunning > 0)
+            {
+                timer += Time.deltaTime;
+                if (timer > 1f) break;
+                yield return null;
+            }
+
+            resetPressed = false;
+            liveClothingPanelUpdate = false;
+            bigData[gi.name].doUpdate = false;
+            bigData.Remove(Utils.SanitizePrefabName(gi.name));
+            yield break;
         }
 
         public static float GetSpecificVanillaValue(string gearName, Stat st)

@@ -19,8 +19,31 @@ namespace CT2
                 if (bigData.ContainsKey(name))
                 {
                     //MelonCoroutines.Start(SetInstanceClothingValuesToTweaked(__instance));
+                    Log(CC.DarkGray, $"Delaying initialization for {name}");
                     delayedInitialization.Add(__instance);
                 }
+            }
+        }    
+
+
+        [HarmonyPatch(typeof(SaveGameSystem), nameof(SaveGameSystem.LoadSceneData))]
+        public static class ProcessPendingClothingItems
+        {
+            internal static void Postfix()
+            {
+                if (UnbreakablePatches.ClothingItemAwake.delayedInitialization.Count > 0)
+                {
+                    foreach (ClothingItem ci in UnbreakablePatches.ClothingItemAwake.delayedInitialization)
+                    {
+                        if (ci != null)
+                        {
+                            MelonCoroutines.Start(SetInstanceClothingValuesToTweaked(ci));
+                            Log(CC.Gray, $"Post-initialization for {ci.name}");
+                        }
+                    }
+                }
+                Log(CC.Gray, "Clearing delayed initialization list");
+                UnbreakablePatches.ClothingItemAwake.delayedInitialization.Clear();
             }
         }
 
@@ -40,6 +63,7 @@ namespace CT2
                     if (resetPressed)
                     {
                         MelonCoroutines.Start(SetInstanceClothingValuesToTweaked(__instance));
+                        Log(CC.Gray, $"Reset called on {name} {bigData[name].updateCounter}");
                     }
                     else
                     {
@@ -73,9 +97,11 @@ namespace CT2
                                 else __instance.GetComponent<GearItem>().WeightKG = ItemWeight.FromKilograms(GetSpecificVanillaValue(name, st));
                                 break;
                         }
+
+                        Log(CC.Yellow, $"Live updating {name}, counter: {bigData[name].updateCounter}");
                     }
 
-                    Log(CC.Yellow, $"Live updating {name}, counter: {bigData[name].updateCounter}");
+                    
 
                     bigData[name].updateCounter--;
 

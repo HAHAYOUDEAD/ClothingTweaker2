@@ -1,8 +1,10 @@
-﻿namespace CT2
+﻿using UnityEngine.Rendering.RenderGraphModule.NativeRenderPassCompiler;
+
+namespace CT2
 {
     public class Main : MelonMod
     {
-        public const string modVersion = "1.0.4";
+        public const string modVersion = "1.0.5";
         public const string modName = "ClothingTweaker2";
         public const string modAuthor = "Waltz";
 
@@ -49,29 +51,17 @@
             }
         }
 
-        public override void OnSceneWasInitialized(int buildIndex, string sceneName)
-        {
-            if (IsScenePlayable(sceneName))
-            {
-                if (UnbreakablePatches.ClothingItemAwake.delayedInitialization.Count > 0)
-                {
-                    foreach (ClothingItem ci in UnbreakablePatches.ClothingItemAwake.delayedInitialization)
-                    {
-                        MelonCoroutines.Start(SetInstanceClothingValuesToTweaked(ci));
-                        Log(CC.Gray, $"Post-initialization for {ci.name}");
-                    }
-                    UnbreakablePatches.ClothingItemAwake.delayedInitialization.Clear();
-                }
-            }
-        }
-
         public static void ResetAllCustomData() => bigData.Clear();
         public static IEnumerator SetInstanceClothingValuesToTweaked(ClothingItem ci)
         {
+            MelonLogger.Msg("reset 0");
+            if (ci == null) yield break;
+            MelonLogger.Msg("reset 1");
             while (coroutineRunning > 0)
             {
                 yield return new WaitForEndOfFrame();
             }
+            MelonLogger.Msg("reset 2");
             string name = Utils.SanitizePrefabName(ci.name);
             GearItem giPrefab;
             if (tempPrefabList.ContainsKey(name) && tempPrefabList[name]?.gameObject != null) giPrefab = tempPrefabList[name];
@@ -94,6 +84,7 @@
                 }
                 tempPrefabList[name] = giPrefab;
             }
+            MelonLogger.Msg("reset 3");
             ClothingItem ciPrefab = giPrefab.GetComponent<ClothingItem>();
             ci.m_Warmth = bigData[name].warmth ?? ciPrefab.m_Warmth;
             ci.m_WarmthWhenWet = bigData[name].warmthWet ?? ciPrefab.m_WarmthWhenWet;
@@ -103,6 +94,7 @@
             ci.m_SprintBarReductionPercent = bigData[name].mobility ?? ciPrefab.m_SprintBarReductionPercent;
             if (bigData[name].weight != null) ci.GetComponent<GearItem>().WeightKG = ItemWeight.FromKilograms((float)bigData[name].weight);
             else ci.GetComponent<GearItem>().WeightKG = giPrefab.GearItemData.BaseWeightKG;
+            MelonLogger.Msg("reset 4");
             yield break;
         }
     }
