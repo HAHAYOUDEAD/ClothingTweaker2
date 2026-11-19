@@ -68,7 +68,7 @@ namespace CT2
             else
             {
                 coroutineRunning++;
-                giPrefab = GearItem.LoadGearItemPrefab(name); // running 2+ of those with same gear name at the same time causes issues
+                giPrefab = GearItem.InstantiateGearItem(name); // running 2+ of those with same gear name at the same time causes issues
                 //giPrefab.gameObject.SetActive(false);
                 float f = 0f;
                 while (!giPrefab || f > 1f)
