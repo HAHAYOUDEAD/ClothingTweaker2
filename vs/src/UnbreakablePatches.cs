@@ -1,4 +1,5 @@
 ﻿using static CT2.Control;
+using UnityEngine.AddressableAssets;
 
 namespace CT2
 {
@@ -33,6 +34,10 @@ namespace CT2
             {
                 if (UnbreakablePatches.ClothingItemAwake.delayedInitialization.Count > 0)
                 {
+                    // Snapshot the items and clear the HashSet immediately so new Awake() calls don't break enumeration
+                    var pending = new List<ClothingItem>(UnbreakablePatches.ClothingItemAwake.delayedInitialization);
+                    UnbreakablePatches.ClothingItemAwake.delayedInitialization.Clear();
+
                     foreach (ClothingItem ci in UnbreakablePatches.ClothingItemAwake.delayedInitialization)
                     {
                         if (ci != null)
@@ -175,7 +180,7 @@ namespace CT2
                     // show UI
                     CTUIRoot.active = true;
 
-                    GearItem giPrefab = GearItem.LoadGearItemPrefab(currentlySelected.name);
+                    GearItem giPrefab = Addressables.LoadAssetAsync<GearItem>(currentlySelected.name).WaitForCompletion();
                     //Control.WriteVanillaClothingData(giPrefab);
                     Sliders.SetUpSliders(giPrefab);
                 }
@@ -224,7 +229,6 @@ namespace CT2
             }
         }
 
-
         [HarmonyPatch(typeof(Panel_Inventory), nameof(Panel_Inventory.Update))]
         private static class UIInjection
         {
@@ -234,18 +238,18 @@ namespace CT2
             {
                 if (!InventoryPanelTracker.startTracking) return;
 
-                if (__instance.GetCurrentlySelectedItem()?.m_GearItem == currentlySelected) return;
+                GearItem selected = __instance.GetCurrentlySelectedItem()?.m_GearItem;
+                if (selected == currentlySelected) return;
 
-                currentlySelected = __instance.GetCurrentlySelectedItem()?.m_GearItem;
+                currentlySelected = selected;
 
-                if (currentlySelected != null && currentlySelected.m_ClothingItem)
+                if (currentlySelected != null && currentlySelected.m_ClothingItem != null)
                 {
                     // show UI
                     CTUIRoot.active = true;
 
-                    GearItem giPrefab = GearItem.LoadGearItemPrefab(currentlySelected.name);
-                    //Control.WriteVanillaClothingData(giPrefab);
-                    Sliders.SetUpSliders(giPrefab);
+                    // Pass the LIVE inventory item, not a prefab!
+                    Sliders.SetUpSliders(currentlySelected);
                 }
                 else
                 {
@@ -265,7 +269,6 @@ namespace CT2
             }
         }
 
-
         [HarmonyPatch(typeof(SaveGameSystem), nameof(SaveGameSystem.RestoreGlobalData))]
         private static class LoadTweaks
         {
@@ -276,6 +279,33 @@ namespace CT2
                 bigData = DataOperations.Deserialize(serializedSaveData);
             }
         }
+
+        [HarmonyPatch(typeof(GearItem), nameof(GearItem.Deserialize))]
+        private static class GearItemDeserializePatch
+        {
+            internal static void Postfix(ref GearItem __instance)
+            {
+                if (__instance == null) return;
+
+                ClothingItem ci = __instance.GetComponent<ClothingItem>();
+                if (ci == null) return;
+
+                string name = Utils.SanitizePrefabName(__instance.name);
+                if (!bigData.ContainsKey(name)) return;
+
+                ClothingData data = bigData[name];
+
+                if (data.warmth != null) ci.m_Warmth = (float)data.warmth;
+                if (data.warmthWet != null) ci.m_WarmthWhenWet = (float)data.warmthWet;
+                if (data.windproof != null) ci.m_Windproof = (float)data.windproof;
+                if (data.waterproof != null) ci.m_Waterproofness = (float)data.waterproof;
+                if (data.protection != null) ci.m_Toughness = (float)data.protection;
+                if (data.mobility != null) ci.m_SprintBarReductionPercent = (float)data.mobility;
+                if (data.weight != null)
+                {
+                    __instance.WeightKG = ItemWeight.FromKilograms((float)data.weight);
+                }
+            }
+        }
     }
 }
- 

@@ -1,4 +1,8 @@
-﻿namespace CT2
+﻿using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.AddressableAssets;
+
+namespace CT2
 {
     public class Control
     {
@@ -157,22 +161,70 @@
             bigData.Remove(Utils.SanitizePrefabName(gi.name));
             yield break;
         }
+        private static readonly Dictionary<string, Dictionary<Stat, float>> vanillaCache = new();
+
+        /*public static float GetSpecificVanillaValue(string gearName, Stat st)
+
+        {
+            gearName = gearName.Replace("(Clone)", "").Trim();
+
+            if (vanillaCache.TryGetValue(gearName, out var cachedStats) && cachedStats.TryGetValue(st, out float cachedVal))
+            {
+                return cachedVal;
+            }
+
+            GearItem giInstance = GearItem.InstantiateGearItem(gearName);
+            if (giInstance == null) return 0f;
+
+            var stats = new Dictionary<Stat, float>();
+            ClothingItem ci = giInstance.GetComponent<ClothingItem>();
+
+            if (ci != null)
+            {
+                stats[Stat.Warmth] = ci.m_Warmth;
+                stats[Stat.WarmthWet] = ci.m_WarmthWhenWet;
+                stats[Stat.Windproof] = ci.m_Windproof;
+                stats[Stat.Waterproof] = ci.m_Waterproofness;
+                stats[Stat.Protection] = ci.m_Toughness;
+                stats[Stat.Mobility] = ci.m_SprintBarReductionPercent;
+                stats[Stat.Weight] = giInstance.GearItemData.BaseWeightKG.ToQuantity(1f);
+            }
+
+            UnityEngine.Object.Destroy(giInstance.gameObject);
+            vanillaCache[gearName] = stats;
+
+            return stats.TryGetValue(st, out float result) ? result : 0f;
+        }*/
 
         public static float GetSpecificVanillaValue(string gearName, Stat st)
         {
-            GearItem giPrefab = GearItem.LoadGearItemPrefab(gearName);
-            ClothingItem ci = giPrefab.GetComponent<ClothingItem>();
-            if (ci == null) return 0f;
+            gearName = Utils.SanitizePrefabName(gearName);
 
-            if (st == Stat.Warmth) return ci.m_Warmth;
-            if (st == Stat.WarmthWet) return ci.m_WarmthWhenWet;
-            if (st == Stat.Windproof) return ci.m_Windproof;
-            if (st == Stat.Waterproof) return ci.m_Waterproofness;
-            if (st == Stat.Protection) return ci.m_Toughness;
-            if (st == Stat.Mobility) return ci.m_SprintBarReductionPercent;
-            if (st == Stat.Weight) return giPrefab.GearItemData.BaseWeightKG.ToQuantity(1f);
+            if (vanillaCache.TryGetValue(gearName, out var cachedStats) && cachedStats.TryGetValue(st, out float cachedVal))
+            {
+                return cachedVal;
+            }
 
-            return 0f;
+            GameObject prefabObj = Addressables.LoadAssetAsync<GameObject>(gearName).WaitForCompletion();
+            if (prefabObj == null) return 0f;
+
+            GearItem giPrefab = prefabObj.GetComponent<GearItem>();
+            ClothingItem ci = prefabObj.GetComponent<ClothingItem>();
+            if (giPrefab == null || ci == null) return 0f;
+
+            var stats = new Dictionary<Stat, float>
+            {
+                [Stat.Warmth] = ci.m_Warmth,
+                [Stat.WarmthWet] = ci.m_WarmthWhenWet,
+                [Stat.Windproof] = ci.m_Windproof,
+                [Stat.Waterproof] = ci.m_Waterproofness,
+                [Stat.Protection] = ci.m_Toughness,
+                [Stat.Mobility] = ci.m_SprintBarReductionPercent,
+                [Stat.Weight] = giPrefab.GearItemData.BaseWeightKG.ToQuantity(1f)
+            };
+
+            vanillaCache[gearName] = stats;
+            return stats.TryGetValue(st, out float result) ? result : 0f;
         }
 
         public static IEnumerator LetAllInstancesUpdate(string name)

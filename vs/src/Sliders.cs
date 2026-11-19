@@ -62,23 +62,45 @@
             slider.transform.GetParent().Find("Label").GetComponent<Il2CppTMPro.TMP_Text>().font = GameManager.GetFontManager().GetTMPFontForCharacterSet(Localization.GetCharacterSet());
 
             slider.onValueChanged.RemoveAllListeners();
-            slider.onValueChanged.AddListener(DelegateSupport.ConvertDelegate<UnityAction<float>>(new Action<float>(delegate (float value) { SetLabelFromSliderValue(st); })));
-            slider.onValueChanged.AddListener(DelegateSupport.ConvertDelegate<UnityAction<float>>(new Action<float>(delegate (float value) { SetSliderHandleColor(st); })));
-            slider.onValueChanged.AddListener(DelegateSupport.ConvertDelegate<UnityAction<float>>(new Action<float>(delegate (float value) { WriteTweakedClothingData(st, gi); })));
+
+            slider.onValueChanged.AddListener((UnityAction<float>)((float value) =>
+            {
+                SetLabelFromSliderValue(st);
+                SetSliderHandleColor(st);
+                WriteTweakedClothingData(st, gi);
+            }));
+
+            slider.onValueChanged.AddListener((UnityEngine.Events.UnityAction<float>)((float value) =>
+            {
+                SetLabelFromSliderValue(st);
+                SetSliderHandleColor(st);
+                WriteTweakedClothingData(st, gi);
+            }));
         }
 
+        private static GearItem lastSelectedGearItem = null;
 
         public static void SetUpSliders(GearItem gi)
         {
+            if (gi == null)
+            {
+                lastSelectedGearItem = null;
+                return;
+            }
+
+            // Do not re-initialize sliders every frame if we are still inspecting the same item
+            if (gi == lastSelectedGearItem) return;
+
+            ClothingItem ci = gi.GetComponent<ClothingItem>();
+            if (ci == null) return;
+
             if (CTUIRoot == null)
             {
                 Log(CC.Red, "CTUI not initialized. SetUpSliders");
                 return;
             }
 
-            Stat st;
-            string name = gi.name;
-            bool fromPrefab = !bigData.ContainsKey(name);
+            lastSelectedGearItem = gi;
 
             SetUpIndividualSlider(gi, Stat.Warmth, 0f, maxWarmth * tempMultiplier, tempMultiplier);
             SetUpIndividualSlider(gi, Stat.WarmthWet, 0f, maxWarmthWet * tempMultiplier, tempMultiplier);
@@ -93,7 +115,8 @@
 
         public static void SetUpIndividualSlider(GearItem gi, Stat st, float min, float max, float multiplier = 1f)
         {
-            string name = gi.name;
+            // Sanitize the name so "(Clone)" is removed
+            string name = Utils.SanitizePrefabName(gi.name);
 
             InitializeSlider(st, min, max, gi);
             float valueVanilla = GetSpecificVanillaValue(name, st);
@@ -219,45 +242,77 @@
             Slider slider = GetSliderByType(st);
             Slider sliderDefault = GetSliderByType(st, true);
 
-            string name = gi.name;
+            // Sanitize the name so "(Clone)" is removed
+            string name = Utils.SanitizePrefabName(gi.name);
 
-            if (!bigData.ContainsKey(name)) // create new dict entry on first slider change
+            if (!bigData.ContainsKey(name))
             {
-                if (slider.value == sliderDefault.value) return; // don't write unnecessary data
+                if (slider.value == sliderDefault.value) return;
                 bigData[name] = new ClothingData();
             }
 
             switch (st)
             {
                 case Stat.Warmth:
-                    if (slider.value == sliderDefault.value) bigData[name].warmth = default; // erase data when value is vanilla
-                    else bigData[name].warmth = slider.value / tempMultiplier; // save changed value
+                    bigData[name].warmth = (slider.value == sliderDefault.value) ? default : slider.value / tempMultiplier;
                     break;
                 case Stat.WarmthWet:
-                    if (slider.value == sliderDefault.value) bigData[name].warmthWet = default;
-                    else bigData[name].warmthWet = slider.value / tempMultiplier;
+                    bigData[name].warmthWet = (slider.value == sliderDefault.value) ? default : slider.value / tempMultiplier;
                     break;
                 case Stat.Windproof:
-                    if (slider.value == sliderDefault.value) bigData[name].windproof = default;
-                    else bigData[name].windproof = slider.value / tempMultiplier;
+                    bigData[name].windproof = (slider.value == sliderDefault.value) ? default : slider.value / tempMultiplier;
                     break;
                 case Stat.Waterproof:
-                    if (slider.value == sliderDefault.value) bigData[name].waterproof = default;
-                    else bigData[name].waterproof = slider.value / wetMultiplier;
+                    bigData[name].waterproof = (slider.value == sliderDefault.value) ? default : slider.value / wetMultiplier;
                     break;
                 case Stat.Protection:
-                    if (slider.value == sliderDefault.value) bigData[name].protection = default;
-                    else bigData[name].protection = slider.value;
+                    bigData[name].protection = (slider.value == sliderDefault.value) ? default : slider.value;
                     break;
                 case Stat.Mobility:
-                    if (slider.value == sliderDefault.value) bigData[name].mobility = default;
-                    else bigData[name].mobility = slider.value;
+                    bigData[name].mobility = (slider.value == sliderDefault.value) ? default : slider.value;
                     break;
                 case Stat.Weight:
-                    if (slider.value == sliderDefault.value) bigData[name].weight = default;
-                    else bigData[name].weight = slider.value / weightMultiplier;
+                    bigData[name].weight = (slider.value == sliderDefault.value) ? default : slider.value / weightMultiplier;
                     break;
             }
+
+            // Apply the change directly to the selected item (and any duplicates in GearManager)
+            foreach (GearItem item in GearManager.m_Gear)
+            {
+                if (item == null || Utils.SanitizePrefabName(item.name) != name) continue;
+
+                ClothingItem ci = item.GetComponent<ClothingItem>();
+                if (ci == null) continue;
+
+                switch (st)
+                {
+                    case Stat.Warmth:
+                        ci.m_Warmth = bigData[name].warmth ?? GetSpecificVanillaValue(name, st);
+                        break;
+                    case Stat.WarmthWet:
+                        ci.m_WarmthWhenWet = bigData[name].warmthWet ?? GetSpecificVanillaValue(name, st);
+                        break;
+                    case Stat.Windproof:
+                        ci.m_Windproof = bigData[name].windproof ?? GetSpecificVanillaValue(name, st);
+                        break;
+                    case Stat.Waterproof:
+                        ci.m_Waterproofness = bigData[name].waterproof ?? GetSpecificVanillaValue(name, st);
+                        break;
+                    case Stat.Protection:
+                        ci.m_Toughness = bigData[name].protection ?? GetSpecificVanillaValue(name, st);
+                        break;
+                    case Stat.Mobility:
+                        ci.m_SprintBarReductionPercent = bigData[name].mobility ?? GetSpecificVanillaValue(name, st);
+                        break;
+                    case Stat.Weight:
+                        float w = bigData[name].weight ?? GetSpecificVanillaValue(name, st);
+                        item.WeightKG = ItemWeight.FromKilograms(w);
+                        break;
+                }
+            }
+
+            // Force the inventory stat display to refresh immediately
+            InterfaceManager.GetPanel<Panel_Inventory>()?.UpdateGearStatsBlock();
 
             if (Settings.options.potatoMode == 0)
             {
